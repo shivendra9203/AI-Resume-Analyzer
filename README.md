@@ -132,7 +132,9 @@ To run this project, perform the following tasks 😨
 Step 1: Clone the Repository
 
 Clone the AI Resume Analyzer repository to your local machine:
+
 ```bash
+
 git clone https://github.com/your-username/AI-Resume-Analyzer.git
 
 cd AI-Resume-Analyzer
@@ -142,27 +144,34 @@ Replace your-username with your GitHub username.
 Step 2: Set Up a Virtual Environment
 
 Create and activate a Python virtual environment to manage dependencies:
+
 ```bash
 python -m venv venvapp
 
 .\venvapp\Scripts\activate  # On Windows
-# source venvapp/bin/activate  # On macOS/Linux
+source venvapp/bin/activate  # On macOS/Linux
+
 ```
 
 Step 3: Install Dependencies
 
 Install the required Python packages listed in requirements.txt:
+
 ```bash
 cd App
 
 pip install -r requirements.txt
+
 ```
 
 Step 4: Install spaCy Language Model
 
 The project uses spaCy’s en_core_web_sm model for resume parsing. Install it:
+
 ```bash
+
 python -m spacy download en_core_web_sm
+
 ```
 
 Step 5: Configure MySQL Database
