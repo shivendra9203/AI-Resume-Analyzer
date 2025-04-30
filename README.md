@@ -129,36 +129,6 @@ Using logical programs, it will recommend
 ## Setup & Installation 👀
 
 To run this project, perform the following tasks 😨
-
-Download the code file manually or via git
-```bash
-git clone https://github.com/shivendra9203/AI-Resume-Analyzer.git
-```
-
-Create a virtual environment and activate it **(recommended)**
-
-Open your command prompt and change your project directory to ```AI-Resume-Analyzer``` and run the following command 
-```bash
-python -m venv venvapp
-
-cd venvapp/Scripts
-
-activate
-
-```
-
-Downloading packages from ```requirements.txt``` inside ``App`` folder
-```bash
-cd../..
-
-cd App
-
-pip install -r requirements.txt
-
-python -m spacy download en_core_web_sm
-
-```
-
 Step 1: Clone the Repository
 
 Clone the AI Resume Analyzer repository to your local machine:
