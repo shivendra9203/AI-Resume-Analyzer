@@ -155,9 +155,26 @@ source venvapp/bin/activate  # On macOS/Linux
 
 Step 3: Install Dependencies
 
+Ensure pip is up-to-date:
+
+```bash
+
+python -m pip install --upgrade pip
+
+```
+
+Clear the cache to avoid corrupted downloads:
+
+```bash
+
+pip cache purge
+
+```
+
 Install the required Python packages listed in requirements.txt:
 
 ```bash
+
 cd App
 
 pip install -r requirements.txt
