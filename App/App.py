@@ -1,4 +1,4 @@
-# Developed by dnoobnerd [https://dnoobnerd.netlify.app]    Made with Streamlit
+# Developed by Shiv  Made with Streamlit
 
 ###### Packages Used ######
 import streamlit as st
@@ -183,8 +183,8 @@ def main_app():
     img = Image.open('./Logo/RESUM.png')
     st.image(img)
     st.sidebar.markdown("# Choose Something...")
-    link = '<a href="https://dnoobnerd.netlify.app" target="_blank">Developed by dnoobnerd</a>'
-    st.sidebar.markdown(link, unsafe_allow_html=True)
+    ## link = '<a href="https://dnoobnerd.netlify.app" target="_blank">Developed by dnoobnerd</a>'
+    ## st.sidebar.markdown(link, unsafe_allow_html=True)
     activities = ["User", "Feedback", "About", "Admin", "Logout"]
     choice = st.sidebar.selectbox("Choose among the given options:", activities)
 
