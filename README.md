@@ -135,7 +135,7 @@ Clone the AI Resume Analyzer repository to your local machine:
 
 ```bash
 
-git clone https://github.com/your-username/AI-Resume-Analyzer.git
+git clone https://github.com/shivendra9203/AI-Resume-Analyzer.git
 
 cd AI-Resume-Analyzer
 ```
