@@ -1,5 +1,4 @@
 # Developed by Shiv  Made with Streamlit
-
 ###### Packages Used ######
 import streamlit as st
 import pandas as pd
@@ -91,7 +90,7 @@ def create_users_table():
     connection.commit()
 
 def insert_user(username, email, password, timestamp):
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(10))  # Reduced rounds for faster hashing
     insert_sql = "INSERT INTO users (username, email, password, created_at) VALUES (%s, %s, %s, %s)"
     cursor.execute(insert_sql, (username, email, hashed_password, timestamp))
     connection.commit()
@@ -131,19 +130,24 @@ st.set_page_config(
 
 def signup_page():
     st.title("Sign Up")
+    if 'signup_submitting' not in st.session_state:
+        st.session_state.signup_submitting = False
+
     with st.form("signup_form"):
         username = st.text_input("Username")
         email = st.text_input("Email")
         password = st.text_input("Password", type="password")
         submit = st.form_submit_button("Sign Up")
-        if submit:
+        if submit and not st.session_state.signup_submitting:
+            st.session_state.signup_submitting = True
             if not username or not email or not password:
                 st.error("All fields are required.")
+                st.session_state.signup_submitting = False
             else:
-                # Password validation
                 password_pattern = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*[!@#$%^&*])(?=.{6,})'
                 if not re.match(password_pattern, password):
                     st.error("Password must be at least 6 characters long and contain at least 1 uppercase letter, 1 lowercase letter, and 1 special character (!@#$%^&*).")
+                    st.session_state.signup_submitting = False
                 else:
                     try:
                         ts = time.time()
@@ -151,20 +155,30 @@ def signup_page():
                         insert_user(username, email, password, timestamp)
                         st.success("Account created successfully! Please log in.")
                         st.session_state.page = "login"
+                        st.session_state.signup_submitting = False
+                        st.experimental_rerun()
                     except pymysql.err.IntegrityError:
                         st.error("Username or email already exists.")
+                        st.session_state.signup_submitting = False
+    
     if st.button("Already have an account? Log In"):
         st.session_state.page = "login"
+        st.experimental_rerun()
 
 def login_page():
     st.title("Log In")
+    if 'login_submitting' not in st.session_state:
+        st.session_state.login_submitting = False
+
     with st.form("login_form"):
         identifier = st.text_input("Username or Email")
         password = st.text_input("Password", type="password")
         submit = st.form_submit_button("Log In")
-        if submit:
+        if submit and not st.session_state.login_submitting:
+            st.session_state.login_submitting = True
             if not identifier or not password:
                 st.error("All fields are required.")
+                st.session_state.login_submitting = False
             else:
                 username = check_user_credentials(identifier, password)
                 if username:
@@ -172,19 +186,25 @@ def login_page():
                     st.session_state.username = username
                     st.session_state.page = "main"
                     st.success(f"Welcome, {username}!")
+                    st.session_state.login_submitting = False
+                    st.experimental_rerun()
                 else:
                     st.error("Invalid username/email or password.")
-    if st.button("Don't have an account? Sign Up"):
-        st.session_state.page = "signup"
-    if st.button("Forgot Password?"):
-        st.warning("Please contact the admin at admin@resume-analyzer.com to reset your password.")
+                    st.session_state.login_submitting = False
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Don't have an account? Sign Up"):
+            st.session_state.page = "signup"
+            st.experimental_rerun()
+    with col2:
+        if st.button("Forgot Password?"):
+            st.warning("Please contact the admin at admin@resume-analyzer.com to reset your password.")
 
 def main_app():
     img = Image.open('./Logo/RESUM.png')
     st.image(img)
     st.sidebar.markdown("# Choose Something...")
-    ## link = '<a href="https://dnoobnerd.netlify.app" target="_blank">Developed by dnoobnerd</a>'
-    ## st.sidebar.markdown(link, unsafe_allow_html=True)
     activities = ["User", "Feedback", "About", "Admin", "Logout"]
     choice = st.sidebar.selectbox("Choose among the given options:", activities)
 
@@ -192,6 +212,7 @@ def main_app():
         st.session_state.logged_in = False
         st.session_state.page = "login"
         st.success("Logged out successfully.")
+        st.experimental_rerun()
         return
 
     # Create database and tables
@@ -528,7 +549,7 @@ def main_app():
                 plot_data = pd.DataFrame(datanalys, columns=['Idt', 'IP_add', 'resume_score', 'Predicted_Field', 'User_Level', 'City', 'State', 'Country'])
                 values = plot_data.Idt.count()
                 st.success("Welcome Shivendra ! Total %d " % values + " Users Have Used Our Tool : )")
-                cursor.execute('''SELECT ID, sec_token, ip_add, act_name, act_mail, act_mob, convert(Predicted_Field using utf8), Timestamp, Name, Email_ID, resume_score, Page_no, pdf_name, convert(User_level using utf8), convert(Actual_skills using utf8), convert(Recommended_skills using utf8), convert(Recommended_courses using utf8), city, state, country, latlong, os_name_ver, host_name, dev_user FROM user_data''')
+                cursor.execute('''SELECT ID, sec_token, ip_add, act_name, act_mail, act_mob, convert(Predicted_Field using utf8), Timestamp, Name, Predicted Mail, resume_score, Page_no, pdf_name, convert(User_level using utf8), convert(Actual_skills using utf8), convert(Recommended_skills using utf8), convert(Recommended_courses using utf8), city, state, country, latlong, os_name_ver, host_name, dev_user FROM user_data''')
                 data = cursor.fetchall()
                 st.header("**User's Data**")
                 df = pd.DataFrame(data, columns=['ID', 'Token', 'IP Address', 'Name', 'Mail', 'Mobile Number', 'Predicted Field', 'Timestamp', 'Predicted Name', 'Predicted Mail', 'Resume Score', 'Total Page', 'File Name', 'User Level', 'Actual Skills', 'Recommended Skills', 'Recommended Course', 'City', 'State', 'Country', 'Lat Long', 'Server OS', 'Server Name', 'Server User'])
@@ -612,6 +633,10 @@ def run():
         st.session_state.page = "login"
     if 'logged_in' not in st.session_state:
         st.session_state.logged_in = False
+    if 'signup_submitting' not in st.session_state:
+        st.session_state.signup_submitting = False
+    if 'login_submitting' not in st.session_state:
+        st.session_state.login_submitting = False
 
     if st.session_state.page == "signup":
         signup_page()
