@@ -1,4 +1,5 @@
 # Developed by Shiv  Made with Streamlit
+
 ###### Packages Used ######
 import streamlit as st
 import pandas as pd
@@ -40,7 +41,7 @@ def pdf_reader(file):
     resource_manager = PDFResourceManager()
     fake_file_handle = io.StringIO()
     converter = TextConverter(resource_manager, fake_file_handle, laparams=LAParams())
-    page_interpreter = PDFPageInterpreter(resource_manager, converter)
+    page_interplaceter = PDFPageInterpreter(resource_manager, converter)
     with open(file, 'rb') as fh:
         for page in PDFPage.get_pages(fh, caching=True, check_extractable=True):
             page_interpreter.process_page(page)
@@ -72,25 +73,49 @@ def course_recommender(course_list):
 ###### Database Functions ######
 
 # SQL connector
-connection = pymysql.connect(host='localhost', user='root', password='Shiv@2004', db='mydb')
-cursor = connection.cursor()
+try:
+    connection = pymysql.connect(host='localhost', user='root', password='Shiv@2004', db='mydb')
+    cursor = connection.cursor()
+except pymysql.err.OperationalError as e:
+    st.error(f"Database connection failed: {e}")
+    st.stop()
 
 def create_users_table():
-    table_sql = """
-    CREATE TABLE IF NOT EXISTS users (
-        id INT NOT NULL AUTO_INCREMENT,
-        username VARCHAR(50) NOT NULL UNIQUE,
-        email VARCHAR(100) NOT NULL UNIQUE,
-        password VARCHAR(255) NOT NULL,
-        created_at VARCHAR(50) NOT NULL,
-        PRIMARY KEY (id)
-    );
-    """
-    cursor.execute(table_sql)
-    connection.commit()
+    try:
+        table_sql = """
+        CREATE TABLE IF NOT EXISTS users (
+            id INT NOT NULL AUTO_INCREMENT,
+            username VARCHAR(50) NOT NULL UNIQUE,
+            email VARCHAR(100) NOT NULL UNIQUE,
+            password VARCHAR(255) NOT NULL,
+            created_at VARCHAR(50) NOT NULL,
+            PRIMARY KEY (id)
+        );
+        """
+        cursor.execute(table_sql)
+        connection.commit()
+    except pymysql.err.DatabaseError as e:
+        st.error(f"Error creating users table: {e}")
+
+def create_otp_table():
+    try:
+        otp_table_sql = """
+        CREATE TABLE IF NOT EXISTS otp_storage (
+            id INT NOT NULL AUTO_INCREMENT,
+            email VARCHAR(100) NOT NULL,
+            otp VARCHAR(6) NOT NULL,
+            created_at VARCHAR(50) NOT NULL,
+            expires_at VARCHAR(50) NOT NULL,
+            PRIMARY KEY (id)
+        );
+        """
+        cursor.execute(otp_table_sql)
+        connection.commit()
+    except pymysql.err.DatabaseError as e:
+        st.error(f"Error creating otp_storage table: {e}")
 
 def insert_user(username, email, password, timestamp):
-    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(10))  # Reduced rounds for faster hashing
+    hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(10))
     insert_sql = "INSERT INTO users (username, email, password, created_at) VALUES (%s, %s, %s, %s)"
     cursor.execute(insert_sql, (username, email, hashed_password, timestamp))
     connection.commit()
@@ -102,6 +127,32 @@ def check_user_credentials(identifier, password):
     if result and bcrypt.checkpw(password.encode('utf-8'), result[1].encode('utf-8')):
         return result[0]  # Return username
     return None
+
+def generate_otp():
+    return ''.join([str(random.randint(0, 9)) for _ in range(6)])
+
+def store_otp(email, otp, timestamp):
+    expires_at = (datetime.datetime.fromtimestamp(time.time()) + datetime.timedelta(minutes=10)).strftime('%Y-%m-%d_%H:%M:%S')
+    insert_otp_sql = "INSERT INTO otp_storage (email, otp, created_at, expires_at) VALUES (%s, %s, %s, %s)"
+    cursor.execute(insert_otp_sql, (email, otp, timestamp, expires_at))
+    connection.commit()
+
+def verify_otp(email, otp):
+    query = "SELECT otp, expires_at FROM otp_storage WHERE email = %s ORDER BY created_at DESC LIMIT 1"
+    cursor.execute(query, (email,))
+    result = cursor.fetchone()
+    if result:
+        stored_otp, expires_at = result
+        current_time = datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d_%H:%M:%S')
+        if current_time <= expires_at and stored_otp == otp:
+            return True
+    return False
+
+def update_password(email, new_password):
+    hashed_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt(10))
+    update_sql = "UPDATE users SET password = %s WHERE email = %s"
+    cursor.execute(update_sql, (hashed_password, email))
+    connection.commit()
 
 def insert_data(sec_token, ip_add, host_name, dev_user, os_name_ver, latlong, city, state, country, act_name, act_mail, act_mob, name, email, res_score, timestamp, no_of_pages, reco_field, cand_level, skills, recommended_skills, courses, pdf_name):
     DB_table_name = 'user_data'
@@ -144,22 +195,27 @@ def signup_page():
                 st.error("All fields are required.")
                 st.session_state.signup_submitting = False
             else:
-                password_pattern = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*[!@#$%^&*])(?=.{6,})'
-                if not re.match(password_pattern, password):
-                    st.error("Password must be at least 6 characters long and contain at least 1 uppercase letter, 1 lowercase letter, and 1 special character (!@#$%^&*).")
+                email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                if not re.match(email_pattern, email):
+                    st.error("Please enter a valid email address (e.g., user@domain.com).")
                     st.session_state.signup_submitting = False
                 else:
-                    try:
-                        ts = time.time()
-                        timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H:%M:%S')
-                        insert_user(username, email, password, timestamp)
-                        st.success("Account created successfully! Please log in.")
-                        st.session_state.page = "login"
+                    password_pattern = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*[!@#$%^&*])(?=.{6,})'
+                    if not re.match(password_pattern, password):
+                        st.error("Password must be at least 6 characters long and contain at least 1 uppercase letter, 1 lowercase letter, and 1 special character (!@#$%^&*).")
                         st.session_state.signup_submitting = False
-                        st.experimental_rerun()
-                    except pymysql.err.IntegrityError:
-                        st.error("Username or email already exists.")
-                        st.session_state.signup_submitting = False
+                    else:
+                        try:
+                            ts = time.time()
+                            timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H:%M:%S')
+                            insert_user(username, email, password, timestamp)
+                            st.success("Account created successfully! Please log in.")
+                            st.session_state.page = "login"
+                            st.session_state.signup_submitting = False
+                            st.experimental_rerun()
+                        except pymysql.err.IntegrityError:
+                            st.error("Username or email already exists.")
+                            st.session_state.signup_submitting = False
     
     if st.button("Already have an account? Log In"):
         st.session_state.page = "login"
@@ -169,37 +225,105 @@ def login_page():
     st.title("Log In")
     if 'login_submitting' not in st.session_state:
         st.session_state.login_submitting = False
+    if 'forgot_password' not in st.session_state:
+        st.session_state.forgot_password = False
+    if 'otp_sent' not in st.session_state:
+        st.session_state.otp_sent = False
+    if 'email_for_reset' not in st.session_state:
+        st.session_state.email_for_reset = ""
 
-    with st.form("login_form"):
-        identifier = st.text_input("Username or Email")
-        password = st.text_input("Password", type="password")
-        submit = st.form_submit_button("Log In")
-        if submit and not st.session_state.login_submitting:
-            st.session_state.login_submitting = True
-            if not identifier or not password:
-                st.error("All fields are required.")
-                st.session_state.login_submitting = False
-            else:
-                username = check_user_credentials(identifier, password)
-                if username:
-                    st.session_state.logged_in = True
-                    st.session_state.username = username
-                    st.session_state.page = "main"
-                    st.success(f"Welcome, {username}!")
+    if not st.session_state.forgot_password:
+        with st.form("login_form"):
+            identifier = st.text_input("Username or Email")
+            password = st.text_input("Password", type="password")
+            submit = st.form_submit_button("Log In")
+            if submit and not st.session_state.login_submitting:
+                st.session_state.login_submitting = True
+                if not identifier or not password:
+                    st.error("All fields are required.")
                     st.session_state.login_submitting = False
-                    st.experimental_rerun()
                 else:
-                    st.error("Invalid username/email or password.")
-                    st.session_state.login_submitting = False
+                    username = check_user_credentials(identifier, password)
+                    if username:
+                        st.session_state.logged_in = True
+                        st.session_state.username = username
+                        st.session_state.page = "main"
+                        st.success(f"Welcome, {username}!")
+                        st.session_state.login_submitting = False
+                        st.experimental_rerun()
+                    else:
+                        st.error("Invalid username/email or password.")
+                        st.session_state.login_submitting = False
     
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Don't have an account? Sign Up"):
-            st.session_state.page = "signup"
-            st.experimental_rerun()
-    with col2:
-        if st.button("Forgot Password?"):
-            st.warning("Please contact the admin at admin@resume-analyzer.com to reset your password.")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Don't have an account? Sign Up"):
+                st.session_state.page = "signup"
+                st.experimental_rerun()
+        with col2:
+            if st.button("Forgot Password?"):
+                st.session_state.forgot_password = True
+                st.experimental_rerun()
+    
+    else:
+        st.subheader("Reset Password")
+        if not st.session_state.otp_sent:
+            with st.form("email_form"):
+                email = st.text_input("Enter your email address")
+                submit_email = st.form_submit_button("Send OTP")
+                if submit_email:
+                    email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                    if not re.match(email_pattern, email):
+                        st.error("Please enter a valid email address.")
+                    else:
+                        query = "SELECT email FROM users WHERE email = %s"
+                        cursor.execute(query, (email,))
+                        if cursor.fetchone():
+                            otp = generate_otp()
+                            ts = time.time()
+                            timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H:%M:%S')
+                            store_otp(email, otp, timestamp)
+                            st.session_state.otp_sent = True
+                            st.session_state.email_for_reset = email
+                            st.success(f"OTP sent to {email}. Please check your email. (For demo: OTP is {otp})")
+                            st.experimental_rerun()
+                        else:
+                            st.error("Email not found in our records.")
+        else:
+            with st.form("otp_form"):
+                otp = st.text_input("Enter OTP")
+                new_password = st.text_input("New Password", type="password")
+                confirm_password = st.text_input("Confirm New Password", type="password")
+                submit_otp = st.form_submit_button("Verify OTP and Reset Password")
+                resend_otp = st.form_submit_button("Resend OTP")
+                
+                if resend_otp:
+                    otp = generate_otp()
+                    ts = time.time()
+                    timestamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d_%H:%M:%S')
+                    store_otp(st.session_state.email_for_reset, otp, timestamp)
+                    st.success(f"New OTP sent to {st.session_state.email_for_reset}. (For demo: OTP is {otp})")
+                    st.experimental_rerun()
+                
+                if submit_otp:
+                    if not otp or not new_password or not confirm_password:
+                        st.error("All fields are required.")
+                    elif new_password != confirm_password:
+                        st.error("Passwords do not match.")
+                    else:
+                        password_pattern = r'^(?=.*[A-Z])(?=.*[a-z])(?=.*[!@#$%^&*])(?=.{6,})'
+                        if not re.match(password_pattern, new_password):
+                            st.error("Password must be at least 6 characters long and contain at least 1 uppercase letter, 1 lowercase letter, and 1 special character (!@#$%^&*).")
+                        elif verify_otp(st.session_state.email_for_reset, otp):
+                            update_password(st.session_state.email_for_reset, new_password)
+                            st.success("Password reset successfully! Please log in.")
+                            st.session_state.forgot_password = False
+                            st.session_state.otp_sent = False
+                            st.session_state.email_for_reset = ""
+                            st.session_state.page = "login"
+                            st.experimental_rerun()
+                        else:
+                            st.error("Invalid or expired OTP.")
 
 def main_app():
     img = Image.open('./Logo/RESUM.png')
@@ -218,7 +342,6 @@ def main_app():
     # Create database and tables
     db_sql = """CREATE DATABASE IF NOT EXISTS mydb;"""
     cursor.execute(db_sql)
-
     DB_table_name = 'user_data'
     table_sql = """
     CREATE TABLE IF NOT EXISTS """ + DB_table_name + """
@@ -549,7 +672,7 @@ def main_app():
                 plot_data = pd.DataFrame(datanalys, columns=['Idt', 'IP_add', 'resume_score', 'Predicted_Field', 'User_Level', 'City', 'State', 'Country'])
                 values = plot_data.Idt.count()
                 st.success("Welcome Shivendra ! Total %d " % values + " Users Have Used Our Tool : )")
-                cursor.execute('''SELECT ID, sec_token, ip_add, act_name, act_mail, act_mob, convert(Predicted_Field using utf8), Timestamp, Name, Predicted Mail, resume_score, Page_no, pdf_name, convert(User_level using utf8), convert(Actual_skills using utf8), convert(Recommended_skills using utf8), convert(Recommended_courses using utf8), city, state, country, latlong, os_name_ver, host_name, dev_user FROM user_data''')
+                cursor.execute('''SELECT ID, sec_token, ip_add, act_name, act_mail, act_mob, convert(Predicted_Field using utf8), Timestamp, Name, Email_ID, resume_score, Page_no, pdf_name, convert(User_level using utf8), convert(Actual_skills using utf8), convert(Recommended_skills using utf8), convert(Recommended_courses using utf8), city, state, country, latlong, os_name_ver, host_name, dev_user FROM user_data''')
                 data = cursor.fetchall()
                 st.header("**User's Data**")
                 df = pd.DataFrame(data, columns=['ID', 'Token', 'IP Address', 'Name', 'Mail', 'Mobile Number', 'Predicted Field', 'Timestamp', 'Predicted Name', 'Predicted Mail', 'Resume Score', 'Total Page', 'File Name', 'User Level', 'Actual Skills', 'Recommended Skills', 'Recommended Course', 'City', 'State', 'Country', 'Lat Long', 'Server OS', 'Server Name', 'Server User'])
@@ -637,6 +760,23 @@ def run():
         st.session_state.signup_submitting = False
     if 'login_submitting' not in st.session_state:
         st.session_state.login_submitting = False
+    if 'forgot_password' not in st.session_state:
+        st.session_state.forgot_password = False
+    if 'otp_sent' not in st.session_state:
+        st.session_state.otp_sent = False
+    if 'email_for_reset' not in st.session_state:
+        st.session_state.email_for_reset = ""
+
+    # Create database and essential tables at startup
+    try:
+        db_sql = """CREATE DATABASE IF NOT EXISTS mydb;"""
+        cursor.execute(db_sql)
+        connection.commit()
+        create_otp_table()  # Ensure otp_storage table is created
+        create_users_table()  # Ensure users table is created
+    except pymysql.err.DatabaseError as e:
+        st.error(f"Database initialization failed: {e}")
+        st.stop()
 
     if st.session_state.page == "signup":
         signup_page()
